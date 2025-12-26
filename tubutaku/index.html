@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>つぶたく - ◯△日程調整</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap');
+        body { font-family: 'Noto Sans JP', sans-serif; background-color: #f9fafb; color: #374151; }
+        .status-none { background-color: #ffffff; border: 1px solid #e5e7eb; color: #9ca3af; }
+        .status-ok { background-color: #f0fdf4; border: 1px solid #22c55e; color: #166534; }
+        .status-maybe { background-color: #fffbeb; border: 1px solid #f59e0b; color: #92400e; }
+        .status-full { background-color: #fee2e2 !important; border: 1px solid #ef4444 !important; }
+        .logo-tsu { color: #4285F4; } .logo-bu { color: #EA4335; } .logo-ta { color: #FBBC05; } .logo-ku { color: #34A853; }
+        .date-card { min-height: 100px; display: flex; flex-direction: column; align-items: stretch; transition: all 0.2s; position: relative; }
+        .answer-row { font-size: 10px; border-top: 1px solid rgba(0,0,0,0.03); padding-top: 2px; margin-top: 2px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    </style>
+</head>
+<body class="max-w-md mx-auto min-h-screen shadow-md bg-white relative pb-10">
+
+    <header class="bg-white border-b px-4 py-4 sticky top-0 z-50 flex items-center justify-between">
+        <button id="back-btn" onclick="goBack()" class="invisible text-slate-500 text-sm font-bold flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>戻る
+        </button>
+        <h1 class="text-xl font-black tracking-tighter cursor-pointer" onclick="location.hash=''; location.reload();">
+            <span class="logo-tsu">つ</span><span class="logo-bu">ぶ</span><span class="logo-ta">た</span><span class="logo-ku">く</span>
+        </h1>
+        <div class="w-10"></div>
+    </header>
+
+    <main id="app" class="p-5">
+        <div id="screen-home" class="space-y-12 py-10">
+            <div class="text-center space-y-2">
+                <p class="text-slate-400 text-xs tracking-widest font-bold">TRPG・マダミス日程調整</p>
+                <p class="text-2xl font-bold leading-tight text-slate-800">◯と△だけで、<br>もっと手軽に。</p>
+            </div>
+            <div class="space-y-4">
+                <button onclick="showScreen('create')" class="w-full bg-blue-600 text-white p-6 rounded-2xl text-lg font-bold shadow-lg shadow-blue-100 active:scale-95 transition-all">
+                    卓を立てる <span class="text-xs font-normal opacity-80 block mt-1">(GM)</span>
+                </button>
+                <button onclick="showScreen('list')" class="w-full bg-white border-2 border-slate-100 text-slate-600 p-6 rounded-2xl text-lg font-bold active:scale-95 transition-all">
+                    卓に参加する <span class="text-xs font-normal opacity-50 block mt-1">(PL)</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="screen-create" class="hidden space-y-6">
+            <h2 id="create-title" class="text-sm font-bold text-slate-400 px-1 text-center">卓を新しく立てる</h2>
+            <section class="space-y-3">
+                <input type="text" id="gm-name" placeholder="GM名を入力" class="w-full p-4 bg-slate-50 border-none rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
+                <input type="text" id="scenario-name" placeholder="シナリオ名を入力" class="w-full p-4 bg-slate-50 border-none rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
+                <div class="flex gap-3">
+                    <div class="w-1/2 relative">
+                        <input type="number" id="recruit-count" placeholder="PL募集人数" value="4" class="w-full p-4 bg-slate-50 border-none rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
+                        <span class="absolute right-4 top-4 text-slate-400 text-sm">人</span>
+                    </div>
+                    <input type="text" id="start-time" value="21:00〜" class="w-1/2 p-4 bg-slate-50 border-none rounded-xl outline-none">
+                </div>
+                <div class="p-4 bg-slate-50 rounded-xl">
+                    <label class="text-xs font-bold text-slate-400 block mb-2">回答期限</label>
+                    <input type="date" id="deadline-input" class="w-full bg-transparent border-none outline-none font-bold text-slate-700">
+                </div>
+            </section>
+            <section>
+                <div class="flex justify-between items-center mb-2 px-1 text-xs font-bold text-slate-400">開催候補日を選択 (1回タップ:◯ / 2回:△)</div>
+                <div id="gm-calendar" class="grid grid-cols-4 gap-2 h-64 overflow-y-auto p-1 border rounded-xl bg-slate-50/50"></div>
+            </section>
+            <button id="create-btn" onclick="saveEvent()" class="w-full bg-slate-800 text-white p-5 rounded-xl font-bold active:scale-95 transition-all">保存してURLを発行</button>
+        </div>
+
+        <div id="screen-list" class="hidden space-y-4">
+            <h2 class="text-sm font-bold text-slate-400 mb-4 px-1">募集中の卓一覧</h2>
+            <div id="event-list" class="space-y-4"></div>
+        </div>
+
+        <div id="screen-detail" class="hidden space-y-6">
+            <div id="event-detail-content" class="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm"></div>
+            
+            <div id="reminder-area" class="hidden bg-yellow-50 border border-yellow-200 p-4 rounded-xl space-y-2">
+                <h3 class="text-xs font-bold text-yellow-700 flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    回答状況を共有する（GM用）
+                </h3>
+                <button onclick="generateAndCopyReminder()" class="w-full bg-yellow-500 text-white text-xs font-bold py-3 rounded-lg active:scale-95 transition-all shadow-sm">回答状況をコピー</button>
+            </div>
+
+            <div class="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <input type="text" id="copy-url-input" readonly class="bg-transparent text-[10px] text-slate-400 flex-1 outline-none overflow-hidden text-ellipsis">
+                <button onclick="copyCurrentURL()" class="bg-blue-600 text-white text-[10px] px-3 py-1.5 rounded-lg font-bold active:scale-95 transition-all shrink-0">URLコピー</button>
+            </div>
+            <div class="space-y-3">
+                <div class="px-1">
+                    <input type="text" id="pl-name" placeholder="あなたのお名前" class="w-full p-4 bg-slate-50 border-none rounded-xl outline-none border transition-all focus:ring-1 focus:ring-green-400">
+                </div>
+                <div id="pl-calendar" class="grid grid-cols-3 gap-2"></div>
+            </div>
+            <button id="join-btn" onclick="submitParticipation()" class="w-full bg-green-600 text-white p-5 rounded-xl font-bold shadow-lg shadow-green-50 active:scale-95 transition-all">回答を送信</button>
+        </div>
+    </main>
+
+    <div id="menu-modal" class="hidden fixed inset-0 z-[100] flex items-end justify-center bg-black/50 p-4" onclick="closeMenuModal()"><div class="bg-white rounded-2xl w-full max-w-xs overflow-hidden" onclick="event.stopPropagation()"><button onclick="editEvent()" class="w-full p-4 text-left font-bold border-b border-slate-100 flex items-center"><span class="mr-3">✏️</span> 修正する</button><button onclick="openDeleteConfirm()" class="w-full p-4 text-left font-bold text-red-500 flex items-center"><span class="mr-3">🗑️</span> 削除する</button><button onclick="closeMenuModal()" class="w-full p-4 text-center text-slate-400 text-sm">閉じる</button></div></div>
+    <div id="delete-confirm-modal" class="hidden fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-6" onclick="closeDeleteConfirmModal()"><div class="bg-white rounded-2xl p-6 w-full max-w-xs space-y-4" onclick="event.stopPropagation()"><h3 class="font-bold text-lg text-center text-red-500">本当に削除しますか？</h3><div class="flex gap-2"><button onclick="closeDeleteConfirmModal()" class="w-1/2 p-3 rounded-xl bg-slate-100 font-bold text-sm">戻る</button><button onclick="deleteTargetEvent()" class="w-1/2 p-3 rounded-xl bg-red-500 text-white font-bold text-sm">削除</button></div></div></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDoc, getDocs, updateDoc, deleteDoc, doc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyA8swb1CqfWcE-2OnIKH_BPh028MpUlrKA",
+            authDomain: "tubutaku-7653b.firebaseapp.com",
+            projectId: "tubutaku-7653b",
+            storageBucket: "tubutaku-7653b.firebasestorage.app",
+            messagingSenderId: "704881170748",
+            appId: "1:704881170748:web:abbc3a8d4e6de6ead72639",
+            measurementId: "G-T7TP4SZTJW"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        let selectedDates = {};
+        let gmSelectedDates = {};
+        let targetId = null;
+        let editMode = false;
+        let currentEventData = null; 
+        const weekDays = ["日", "月", "火", "水", "木", "金", "土"];
+
+        // 年またぎ対応ソート
+        const sortDates = (a, b) => {
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            const currentMonth = today.getMonth() + 1;
+            const parseWithYear = (s) => {
+                const [m, d] = s.split('(')[0].split('/').map(Number);
+                let year = currentYear;
+                if (m < currentMonth - 2) year += 1; 
+                return new Date(year, m - 1, d).getTime();
+            };
+            return parseWithYear(a) - parseWithYear(b);
+        };
+
+        window.renderGMCalendar = (existingDates = {}) => {
+            const container = document.getElementById('gm-calendar');
+            container.innerHTML = ''; gmSelectedDates = existingDates;
+            const today = new Date();
+            for(let i=0; i<60; i++){ 
+                const d = new Date(); d.setDate(today.getDate() + i);
+                const dateStr = `${d.getMonth()+1}/${d.getDate()}(${weekDays[d.getDay()]})`;
+                const existingMark = existingDates[dateStr] || '-';
+                const btn = document.createElement('div');
+                let statusClass = existingMark === '◯' ? "status-ok" : (existingMark === '△' ? "status-maybe" : "status-none");
+                btn.className = `p-3 rounded-lg text-center cursor-pointer text-xs transition-all ${statusClass} date-card`;
+                btn.innerHTML = `<div class="opacity-60 font-bold">${dateStr}</div><div class="font-bold text-lg mark mt-1">${existingMark}</div>`;
+                btn.onclick = () => {
+                    const mark = btn.querySelector('.mark');
+                    if(mark.innerText === '-') { mark.innerText = '◯'; btn.className = "p-3 rounded-lg text-center cursor-pointer text-xs transition-all status-ok date-card"; gmSelectedDates[dateStr] = '◯'; }
+                    else if(mark.innerText === '◯') { mark.innerText = '△'; btn.className = "p-3 rounded-lg text-center cursor-pointer text-xs transition-all status-maybe date-card"; gmSelectedDates[dateStr] = '△'; }
+                    else { mark.innerText = '-'; btn.className = "p-3 rounded-lg text-center cursor-pointer text-xs transition-all status-none date-card"; delete gmSelectedDates[dateStr]; }
+                };
+                container.appendChild(btn);
+            }
+        };
+
+        window.showScreen = (name) => {
+            document.querySelectorAll('#app > div').forEach(div => div.classList.add('hidden'));
+            document.getElementById('screen-'+name).classList.remove('hidden');
+            document.getElementById('back-btn').style.visibility = (name === 'home') ? 'hidden' : 'visible';
+            if(name === 'create' && !editMode) {
+                const d = new Date(); d.setDate(d.getDate() + 7);
+                document.getElementById('deadline-input').value = d.toISOString().split('T')[0];
+                renderGMCalendar();
+            }
+            if(name === 'list') loadEvents();
+        };
+
+        window.saveEvent = async () => {
+            const gm = document.getElementById('gm-name').value;
+            const scenario = document.getElementById('scenario-name').value;
+            const recruitCount = parseInt(document.getElementById('recruit-count').value);
+            const deadline = document.getElementById('deadline-input').value;
+            if(!gm || !scenario || !recruitCount || !deadline || Object.keys(gmSelectedDates).length === 0) return alert("未入力があります");
+            const eventData = { gm, scenario, maxCount: recruitCount, time: document.getElementById('start-time').value, dates: gmSelectedDates, deadline: deadline };
+            if(editMode && targetId) { await updateDoc(doc(db, "events", targetId), eventData); editMode = false; location.hash = ""; location.reload(); }
+            else { eventData.participants = []; eventData.createdAt = serverTimestamp(); const docRef = await addDoc(collection(db, "events"), eventData); location.hash = docRef.id; }
+        };
+
+        window.loadEvents = async () => {
+            const listEl = document.getElementById('event-list');
+            listEl.innerHTML = '<p class="text-center text-slate-400 py-10 text-xs">読込中...</p>';
+            const snapshot = await getDocs(query(collection(db, "events"), orderBy("createdAt", "desc")));
+            listEl.innerHTML = "";
+            const todayStr = new Date().toISOString().split('T')[0];
+            snapshot.forEach(d => {
+                const data = d.data();
+                const isExpired = data.deadline && data.deadline < todayStr;
+                let okCountMap = {};
+                data.participants.forEach(p => { Object.entries(p.dates).forEach(([date, mark]) => { if(mark === '◯') okCountMap[date] = (okCountMap[date] || 0) + 1; }); });
+                const isPossible = Object.values(okCountMap).some(count => count >= data.maxCount);
+                const card = document.createElement('div');
+                card.className = "p-5 rounded-xl border border-slate-100 bg-white shadow-sm cursor-pointer relative active:scale-[0.98]";
+                card.innerHTML = `<div class="flex justify-between items-start mb-2 pr-6"><h3 class="font-bold text-slate-800">${data.scenario}</h3>${isPossible ? '<span class="bg-red-500 text-white px-2 py-0.5 rounded text-[10px] font-bold">開催可能！</span>' : (isExpired ? '<span class="bg-yellow-400 text-white px-2 py-0.5 rounded text-[10px] font-bold">⚠️期限切れ</span>' : '')}</div><div class="text-xs text-slate-400">GM: ${data.gm} / ${data.participants.length}人回答</div><button class="absolute top-4 right-2 p-1 text-slate-300" onclick="openMenu(event, '${d.id}')"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"></path></svg></button>`;
+                card.onclick = () => { location.hash = d.id; };
+                listEl.appendChild(card);
+            });
+        };
+
+        window.openMenu = (e, id) => { e.stopPropagation(); targetId = id; document.getElementById('menu-modal').classList.remove('hidden'); };
+        window.closeMenuModal = () => document.getElementById('menu-modal').classList.add('hidden');
+        window.openDeleteConfirm = () => { closeMenuModal(); document.getElementById('delete-confirm-modal').classList.remove('hidden'); };
+        window.closeDeleteConfirmModal = () => document.getElementById('delete-confirm-modal').classList.add('hidden');
+        window.deleteTargetEvent = async () => { await deleteDoc(doc(db, "events", targetId)); closeDeleteConfirmModal(); loadEvents(); };
+        window.goBack = () => { location.hash = ""; location.reload(); };
+        
+        window.copyCurrentURL = () => { 
+            const data = currentEventData;
+            const text = `【${data.scenario}】日程調整のお願い\n回答期限: ${data.deadline.replace(/-/g, '/')}\n回答をお願いします！\n${window.location.href}`;
+            navigator.clipboard.writeText(text); alert("URLをコピーしました！"); 
+        };
+
+        // 柔らかい催促メッセージ生成
+        window.generateAndCopyReminder = () => {
+            const data = currentEventData;
+            const counts = {};
+            Object.keys(data.dates).forEach(d => counts[d] = 0);
+            data.participants.forEach(p => {
+                Object.entries(p.dates).forEach(([date, mark]) => { if(mark === '◯' && counts[date] !== undefined) counts[date]++; });
+            });
+            let maxCount = -1;
+            Object.values(counts).forEach(c => { if(c > maxCount) maxCount = c; });
+            const bestDates = Object.keys(counts).filter(d => counts[d] === maxCount).sort(sortDates);
+            const deficit = data.maxCount - maxCount;
+            
+            let msg = `【${data.scenario}】日程調整・回答状況の共有\n\n`;
+            msg += `回答期限を過ぎましたので、現在の集まり具合を共有します！\n`;
+            msg += `以下の日程が有力候補となりますので、まだの方はお手すきの際にご入力をお願いします。\n\n有力候補日:\n`;
+            
+            bestDates.forEach(d => { msg += `・${d} … ${deficit > 0 ? 'あと' + deficit + '人で開催可能' : '開催可能！'}\n`; });
+            msg += `\n${window.location.href}`;
+            navigator.clipboard.writeText(msg); alert("回答状況をコピーしました！");
+        };
+
+        async function showDetail(id) {
+            showScreen('detail');
+            const snap = await getDoc(doc(db, "events", id));
+            if(!snap.exists()) return;
+            const data = snap.data();
+            currentEventData = data;
+            const isExpired = data.deadline && data.deadline < new Date().toISOString().split('T')[0];
+            if(isExpired) document.getElementById('reminder-area').classList.remove('hidden'); else document.getElementById('reminder-area').classList.add('hidden');
+            document.getElementById('event-detail-content').innerHTML = `
+                <h2 class="text-xl font-bold text-slate-800">${data.scenario}</h2>
+                <div class="flex justify-between text-xs text-slate-500 mt-2 border-t pt-2"><span>GM: ${data.gm}</span><span>期限: ${data.deadline}</span></div>`;
+            document.getElementById('copy-url-input').value = window.location.href;
+            const plCalendar = document.getElementById('pl-calendar');
+            plCalendar.innerHTML = ''; selectedDates = {};
+            Object.keys(data.dates).sort(sortDates).forEach(dateStr => {
+                const btn = document.createElement('div');
+                let okCount = 0;
+                data.participants.forEach(p => { if(p.dates[dateStr] === '◯') okCount++; });
+                const isFull = okCount >= data.maxCount;
+                btn.className = `p-2 rounded-lg text-center cursor-pointer text-xs status-none date-card ${isFull ? 'status-full' : ''}`;
+                let rows = `<div class="answer-row font-bold text-blue-500">GM ${data.dates[dateStr]}</div>`;
+                data.participants.forEach(p => { if(p.dates[dateStr]) rows += `<div class="answer-row">${p.name} ${p.dates[dateStr]}</div>`; });
+                btn.innerHTML = `<div class="opacity-60 font-bold">${dateStr}</div><div class="font-bold text-lg mark mt-1">-</div>${rows}`;
+                btn.onclick = () => {
+                    const mark = btn.querySelector('.mark');
+                    if(mark.innerText === '-') { mark.innerText = '◯'; btn.classList.replace('status-none', 'status-ok'); selectedDates[dateStr] = '◯'; }
+                    else if(mark.innerText === '◯') { mark.innerText = '△'; btn.classList.replace('status-ok', 'status-maybe'); selectedDates[dateStr] = '△'; }
+                    else { mark.innerText = '-'; btn.classList.replace('status-maybe', 'status-none'); delete selectedDates[dateStr]; }
+                };
+                plCalendar.appendChild(btn);
+            });
+        }
+
+        window.submitParticipation = async () => {
+            const name = document.getElementById('pl-name').value.trim();
+            if(!name || Object.keys(selectedDates).length === 0) return alert("入力不足です");
+            const eventRef = doc(db, "events", location.hash.substring(1));
+            const snap = await getDoc(eventRef);
+            let participants = snap.data().participants || [];
+            const idx = participants.findIndex(p => p.name === name);
+            if (idx !== -1) { if (!confirm("上書きしますか？")) return; participants[idx] = { name, dates: selectedDates }; }
+            else { participants.push({ name, dates: selectedDates }); }
+            await updateDoc(eventRef, { participants });
+            alert("送信しました！"); location.hash = ""; location.reload();
+        };
+
+        window.addEventListener('hashchange', () => { const id = location.hash.substring(1); if(id) showDetail(id); else showScreen('home'); });
+        if(location.hash) showDetail(location.hash.substring(1));
+    </script>
+</body>
+</html>
