@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>つぶたく - ◯△日程調整</title>
+    <meta name="robots" content="noindex,nofollow">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap');
@@ -63,7 +64,7 @@
                 </div>
             </section>
             <section>
-                <div class="flex justify-between items-center mb-2 px-1 text-xs font-bold text-slate-400">開催候補日を選択 (1回タップ:◯ / 2回:△)</div>
+                <div class="flex justify-between items-center mb-2 px-1 text-xs font-bold text-slate-400">開催候補日を選択 (今日から31日間)</div>
                 <div id="gm-calendar" class="grid grid-cols-4 gap-2 h-64 overflow-y-auto p-1 border rounded-xl bg-slate-50/50"></div>
             </section>
             <button id="create-btn" onclick="saveEvent()" class="w-full bg-slate-800 text-white p-5 rounded-xl font-bold active:scale-95 transition-all">保存してURLを発行</button>
@@ -76,7 +77,6 @@
 
         <div id="screen-detail" class="hidden space-y-6">
             <div id="event-detail-content" class="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm"></div>
-            
             <div id="reminder-area" class="hidden bg-yellow-50 border border-yellow-200 p-4 rounded-xl space-y-2">
                 <h3 class="text-xs font-bold text-yellow-700 flex items-center">
                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -84,7 +84,6 @@
                 </h3>
                 <button onclick="generateAndCopyReminder()" class="w-full bg-yellow-500 text-white text-xs font-bold py-3 rounded-lg active:scale-95 transition-all shadow-sm">回答状況をコピー</button>
             </div>
-
             <div class="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <input type="text" id="copy-url-input" readonly class="bg-transparent text-[10px] text-slate-400 flex-1 outline-none overflow-hidden text-ellipsis">
                 <button onclick="copyCurrentURL()" class="bg-blue-600 text-white text-[10px] px-3 py-1.5 rounded-lg font-bold active:scale-95 transition-all shrink-0">URLコピー</button>
@@ -125,7 +124,6 @@
         let currentEventData = null; 
         const weekDays = ["日", "月", "火", "水", "木", "金", "土"];
 
-        // 年またぎ対応ソート
         const sortDates = (a, b) => {
             const today = new Date();
             const currentYear = today.getFullYear();
@@ -143,7 +141,8 @@
             const container = document.getElementById('gm-calendar');
             container.innerHTML = ''; gmSelectedDates = existingDates;
             const today = new Date();
-            for(let i=0; i<60; i++){ 
+            // ★ ここを31日間に修正しました ★
+            for(let i=0; i<31; i++){ 
                 const d = new Date(); d.setDate(today.getDate() + i);
                 const dateStr = `${d.getMonth()+1}/${d.getDate()}(${weekDays[d.getDay()]})`;
                 const existingMark = existingDates[dateStr] || '-';
@@ -217,7 +216,6 @@
             navigator.clipboard.writeText(text); alert("URLをコピーしました！"); 
         };
 
-        // 柔らかい催促メッセージ生成
         window.generateAndCopyReminder = () => {
             const data = currentEventData;
             const counts = {};
@@ -229,11 +227,7 @@
             Object.values(counts).forEach(c => { if(c > maxCount) maxCount = c; });
             const bestDates = Object.keys(counts).filter(d => counts[d] === maxCount).sort(sortDates);
             const deficit = data.maxCount - maxCount;
-            
-            let msg = `【${data.scenario}】日程調整・回答状況の共有\n\n`;
-            msg += `回答期限を過ぎましたので、現在の集まり具合を共有します！\n`;
-            msg += `以下の日程が有力候補となりますので、まだの方はお手すきの際にご入力をお願いします。\n\n有力候補日:\n`;
-            
+            let msg = `【${data.scenario}】日程調整・回答状況の共有\n\n回答期限を過ぎましたので、現在の集まり具合を共有します！\n以下の日程が有力候補となりますので、まだの方はお手すきの際にご入力をお願いします。\n\n有力候補日:\n`;
             bestDates.forEach(d => { msg += `・${d} … ${deficit > 0 ? 'あと' + deficit + '人で開催可能' : '開催可能！'}\n`; });
             msg += `\n${window.location.href}`;
             navigator.clipboard.writeText(msg); alert("回答状況をコピーしました！");
