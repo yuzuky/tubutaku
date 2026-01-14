@@ -37,7 +37,7 @@
                 <p class="text-2xl font-bold leading-tight text-slate-800">◯と△だけで、<br>もっと手軽に。</p>
             </div>
             <div class="space-y-4">
-                <button onclick="showScreen('create')" class="w-full bg-blue-600 text-white p-6 rounded-2xl text-lg font-bold shadow-lg shadow-blue-100 active:scale-95 transition-all">
+                <button onclick="startCreate()" class="w-full bg-blue-600 text-white p-6 rounded-2xl text-lg font-bold shadow-lg shadow-blue-100 active:scale-95 transition-all">
                     卓を立てる <span class="text-xs font-normal opacity-80 block mt-1">(GM)</span>
                 </button>
                 <button onclick="showScreen('list')" class="w-full bg-white border-2 border-slate-100 text-slate-600 p-6 rounded-2xl text-lg font-bold active:scale-95 transition-all">
@@ -139,9 +139,8 @@
 
         window.renderGMCalendar = (existingDates = {}) => {
             const container = document.getElementById('gm-calendar');
-            container.innerHTML = ''; gmSelectedDates = existingDates;
+            container.innerHTML = ''; gmSelectedDates = {...existingDates};
             const today = new Date();
-            // ★ ここを31日間に修正しました ★
             for(let i=0; i<31; i++){ 
                 const d = new Date(); d.setDate(today.getDate() + i);
                 const dateStr = `${d.getMonth()+1}/${d.getDate()}(${weekDays[d.getDay()]})`;
@@ -167,9 +166,29 @@
             if(name === 'create' && !editMode) {
                 const d = new Date(); d.setDate(d.getDate() + 7);
                 document.getElementById('deadline-input').value = d.toISOString().split('T')[0];
+                document.getElementById('create-title').innerText = "卓を新しく立てる";
                 renderGMCalendar();
             }
             if(name === 'list') loadEvents();
+        };
+
+        window.startCreate = () => { editMode = false; showScreen('create'); };
+
+        window.editEvent = async () => {
+            if(!targetId) return;
+            const snap = await getDoc(doc(db, "events", targetId));
+            if(!snap.exists()) return;
+            const data = snap.data();
+            editMode = true;
+            showScreen('create');
+            document.getElementById('create-title').innerText = "卓の情報を修正する";
+            document.getElementById('gm-name').value = data.gm;
+            document.getElementById('scenario-name').value = data.scenario;
+            document.getElementById('recruit-count').value = data.maxCount;
+            document.getElementById('start-time').value = data.time || "21:00〜";
+            document.getElementById('deadline-input').value = data.deadline;
+            renderGMCalendar(data.dates);
+            closeMenuModal();
         };
 
         window.saveEvent = async () => {
@@ -179,8 +198,15 @@
             const deadline = document.getElementById('deadline-input').value;
             if(!gm || !scenario || !recruitCount || !deadline || Object.keys(gmSelectedDates).length === 0) return alert("未入力があります");
             const eventData = { gm, scenario, maxCount: recruitCount, time: document.getElementById('start-time').value, dates: gmSelectedDates, deadline: deadline };
-            if(editMode && targetId) { await updateDoc(doc(db, "events", targetId), eventData); editMode = false; location.hash = ""; location.reload(); }
-            else { eventData.participants = []; eventData.createdAt = serverTimestamp(); const docRef = await addDoc(collection(db, "events"), eventData); location.hash = docRef.id; }
+            
+            if(editMode && targetId) { 
+                await updateDoc(doc(db, "events", targetId), eventData); 
+                editMode = false; alert("修正しました！"); location.hash = ""; location.reload(); 
+            } else { 
+                eventData.participants = []; eventData.createdAt = serverTimestamp(); 
+                const docRef = await addDoc(collection(db, "events"), eventData); 
+                location.hash = docRef.id; 
+            }
         };
 
         window.loadEvents = async () => {
@@ -239,6 +265,7 @@
             if(!snap.exists()) return;
             const data = snap.data();
             currentEventData = data;
+            targetId = id; // 詳細表示中もIDを保持（修正メニュー用）
             const isExpired = data.deadline && data.deadline < new Date().toISOString().split('T')[0];
             if(isExpired) document.getElementById('reminder-area').classList.remove('hidden'); else document.getElementById('reminder-area').classList.add('hidden');
             document.getElementById('event-detail-content').innerHTML = `
